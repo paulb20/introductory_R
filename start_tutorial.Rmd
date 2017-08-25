@@ -1,0 +1,83 @@
+---
+title: "Introduction to Labour Force Survey analysis using R"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+## Load useful packages
+
+R has many contributed packages (thousands). These ones are very useful (some more than others). It is usual to load contributed packages in a block at the beginning of the analysis sothey are then available throughout. 
+
+I'll explain this later.
+
+```{r setup}
+library(sjPlot)
+library(sjlabelled)
+library(tidyverse)
+library(ggeffects)
+library(ggthemes)
+library(sjmisc)
+library(ggjoy)
+
+```
+
+## Find the LFS data file wanted. 
+
+In Rstudio, we could do this with a dialog box (File > Import Dataset), but that's just one way of doing it. 
+
+In R, there are almost always many ways of doing the same thing, some are easier to learn, some are quicker to do.  What I'm trying to do here is to encourage what is called 'reproducible research', so that the code can be run with the same data and always produce the same results, and new data can be substituted and an updated version produced without further tweaking.
+
+```{r}
+shortnames <- list.files("../Quarterly_Q1name/", pattern= "^.*\\.sav$")
+lfsdir <- "../Quarterly_Q1name/"
+tail(shortnames)
+to_load <- paste0(lfsdir,tail(shortnames,1))
+
+```
+
+What we did there was:
+
+* Get a listing of the SPSS *.sav files in the directory and put it into an R object known as a vector.
+* The *list.files()* command would give a list of all the files in the directory. We restricted it to .sav files by giving it a pattern to search for. Pattern matching is a subject for another day...
+* We set the location of the files into a second named R object.
+* We used the *tail()* command to simply list the last five names in the shortnames object.
+* Then we've pasted the lfs directory and the last one in the list of files together into a 'to_load' object.
+
+## Load the LFS data file
+
+```{r, message=FALSE}
+latestlfs <- read_spss(to_load)
+```
+
+This loads the entire latest quarterly LFs data file into the computer's memory. The survey has `r nrow(latestlfs)` observations on `r ncol(latestlfs)` variables.
+
+Note: this code is general. Adding an extra data file to the list will mean a different file is loaded.
+
+Therefore, simply looking at the data file is not particularly easy.
+
+So here are a few interesting simple tables.
+
+
+```{r}
+sjt.frq(latestlfs$MF1664, title="Whether aged 16-64 (survey includes children, pensioners)")
+sjt.frq(latestlfs$ILODEFR, title="Employment Status")
+sjt.frq(latestlfs$LEVQUL15, title="Qualification level (not asked of under 16 or over 70)")
+
+```
+
+These tables are produced by the sjt.frq() command. This is part of a set of contributed packages that work well for social science research, where much of the data used is in categorical form.
+
+
+### Economic activity by qualification, within age-group
+
+```{r}
+latestlfs %>% filter(MF1664 %in% 1:2)  %>% group_by(MF1664) %>% select(LEVQUL15, ILODEFR, MF1664) %>% sjtab(fun="xtab", show.row.prc=TRUE)
+```
+
+### Weighted and unweighted results
+
+These results are not weighted to population totals. This has been done deliberately to show how many actual survey respondents we have in the different categories. The survey includes weights (different ones for the overall survey and for the 40% asked about earnings). 
+
+It would be useful to use the weights and the survey design information that is encoded in the weights to give us confidence intervals for the estimates. We do find that response rates are not entirely random, and therefore the weights vary across the survey. In particular, populations of interest (such as NEET young people) may have low response rates, or be disproportionately likely to be 'proxy interviews' by another household member. Therefore, being aware of these issues is important.
+
