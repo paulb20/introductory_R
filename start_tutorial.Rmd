@@ -62,7 +62,7 @@ So here are a few interesting simple tables.
 ```{r}
 sjt.frq(latestlfs$MF1664, title="Whether aged 16-64 (survey includes children, pensioners)")
 sjt.frq(latestlfs$ILODEFR, title="Employment Status")
-sjt.frq(latestlfs$LEVQUL15, title="Qualification level (not asked of under 16 or over 70)")
+#sjt.frq(latestlfs$LEVQUL15, title="Qualification level (not asked of under 16 or over 70)")
 
 ```
 
@@ -80,4 +80,60 @@ latestlfs %>% filter(MF1664 %in% 1:2)  %>% group_by(MF1664) %>% select(LEVQUL15,
 These results are not weighted to population totals. This has been done deliberately to show how many actual survey respondents we have in the different categories. The survey includes weights (different ones for the overall survey and for the 40% asked about earnings). 
 
 It would be useful to use the weights and the survey design information that is encoded in the weights to give us confidence intervals for the estimates. We do find that response rates are not entirely random, and therefore the weights vary across the survey. In particular, populations of interest (such as NEET young people) may have low response rates, or be disproportionately likely to be 'proxy interviews' by another household member. Therefore, being aware of these issues is important.
+
+This chunk loads the survey packages that handle weighted variables. It then recodes qualifications so that qualification levels are 'the right way up' i.e. NQF Level 4 and over is 4, NQF level 2 is 2, so that we can work out average qualification levels for particular groups. Thirdly, create variables that are categorical copies of several key variables, and we then convert thee dataset into weighted form.
+
+The R software recognises upper and lower case letters as different, so it is possible to use a convention as I have done here, so that 
+
+```{r}
+library(survey)
+library(srvyr)
+latestlfs$levqualnum <- rec(latestlfs$LEVQUL15, rec="1=4; 2=3; 3=2.5; 4=2; 5=1; 6=NA; 7=0", val.labels=c("No qualifications", "Below NQF Level 2", "NQF Level 2","Trade apprenticeships", "NQF Level 3",  "NQF Level 4 and above"))
+latestlfs$levqul15 <- as_label(latestlfs$LEVQUL15, drop.levels = TRUE)
+latestlfs$sc10mmj <- as_label(latestlfs$SC10MMJ, drop.levels = TRUE)
+latestlfs$sc10mmn <- as_label(latestlfs$SC10MMN, drop.levels = TRUE)
+latestlfs_srvyr <- as_survey(latestlfs, 1, weights = PWT17)
+
+```
+
+### Charting qualifications valued by employers
+
+We'll build up a chart bit by bit. First we need to summarise the data so that the chart can be built.
+
+```{r}
+latestlfs_srvyr %>% 
+  group_by(sc10mmj) %>% 
+  summarize(mean_qual = survey_mean(levqualnum, vartype="ci", na.rm=TRUE), n = survey_total(na.rm=TRUE))
+```
+#### The number of workers by qualification level
+
+We take our weighted survey file, then 'pipe' it (%>%) through a grouping variable - in this case, occupation of workers (at top level grouping) and then summarise the average qualification level. We tell the program to identify a confidence interval for the average, which is based on the number of survey respondents and the rates at which people respond to the survey.  This gives us lower and upper confidence intervals for the average qualification level. We are 95% sure that the true average is within the confidence interval. We also tell the program to calculate the weighted number of workers in each group. Because this number is also uncertain, the program calculates a quality measure for that number as well.
+
+#### The number of recruits by qualification level
+
+We add one extra element in the pipe to filter the data so that we are only looking at people who started a new job in the last three months.
+
+```{r}
+latestlfs_srvyr %>% 
+  filter(EMPLEN ==1) %>%
+  group_by(sc10mmj) %>% 
+  summarize(mean_qual = survey_mean(levqualnum, vartype="ci", na.rm=TRUE), n = survey_total(na.rm=TRUE))
+```
+
+This produces a table that is identically structured, but has many fewer people counted as recruits.
+
+
+
+```{r}
+latestlfs %>% filter(!is.na(LEVQUL15)) %>% ggplot(aes(x=GRSSWK, y=to_label(LEVQUL15))) + geom_joy(rel_min_height=0.01) + labs(title="Weekly earnings of workers, AJ 2017", x="Gross weekly earnings", y="Qualification level") + theme_joy()
+latestlfs %>% filter(!is.na(HIQUL15D), GRSSWK < 1500) %>% ggplot(aes(x=GRSSWK, y=to_label(HIQUL15D))) + geom_joy(rel_min_height=0.01) + labs(title="Weekly earnings of workers, AJ 2017", x="Gross weekly earnings", y="Qualification level") + theme_joy()
+latestlfs %>% filter(!is.na(HIQUL15D), HIQUL15D != 7,GRSSWK < 1500) %>% ggplot(aes(x=GRSSWK, y=to_label(HIQUL15D))) + geom_joy(rel_min_height=0.01) + labs(title="Weekly earnings of workers, AJ 2017", x="Gross weekly earnings", y="Qualification level") + theme_joy()
+latestlfs %>% filter(!is.na(LEVQUL15), GRSSWK < 1500) %>% ggplot(aes(x=GRSSWK, y=to_label(LEVQUL15))) + geom_joy(rel_min_height=0.01) + labs(title="Weekly earnings of workers, AJ 2017", x="Gross weekly earnings", y="Qualification level") + theme_joy()
+
+
+
+
+
+
+```
 
