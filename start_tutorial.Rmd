@@ -18,7 +18,7 @@ library(tidyverse)
 library(ggeffects)
 library(ggthemes)
 library(sjmisc)
-library(ggjoy)
+library(ggridges)
 
 ```
 
@@ -122,18 +122,73 @@ latestlfs_srvyr %>%
 
 This produces a table that is identically structured, but has many fewer people counted as recruits.
 
+We could have saved each table as an R object in the workspace, but we haven't done that so we haven't cluttered up the workspace.
+
+Now we get to produce a chart
+
+```{r}
+latestlfs_srvyr %>% 
+  filter(EMPLEN==1) %>% 
+  group_by(sc10mmj) %>% 
+  summarize(mean_qual = survey_mean(levqualnum, vartype="ci", na.rm=TRUE), n = survey_total(na.rm=TRUE)) %>% 
+  ggplot(aes(sc10mmj, mean_qual)) + 
+  geom_pointrange(aes(ymin=mean_qual_low, ymax=mean_qual_upp, size=n)) + 
+  coord_flip() + 
+  scale_size(range=c(0,1), guide=guide_legend(title="Number of recruits")) + 
+  labs(title="Average qualification level of recruits by occupation", x= "Occupation group", y="Average NQF qualification level")
+```
+
+Here, we've started from the weighted survey, created the table we had before, then piped it into 'ggplot' which creates a chart in layers.
+
+Firstly we've identified the main x and y variables, then we've told it what sort of chart to plot - a 'pointrange', which needs two additional variables - the lower and upper confidence intervals. We've also added the number of recruits in this layer. We could have added it in the original layer, which might have meant that the line didn't increase in size with the dot. I prefer the way I've done it here.I've then flipped the chart on its side, which means that the labels for the occupation groups don't overwrite each other, specified a size range for the dots (the standard was much bigger) and added titles.
+
+Further stages with the chart (not done here so we can show a simpler version) are to 'theme' the chart in L&W standard fonts, colours and lines. The ones we use in the monthly labour market stats briefing are based on the standard used by the Economist magazine, but using our colours and fonts.
+
+### Discussion
+
+This analysis shows something about the qualifications employers are recruiting. We can repeat the analysis with a more detailed level of occupation coding with just one change (the variable name), or changing the qualification coding (rather lengthier) or use different variables such as the age someone achieved their highest qualification.
+
+The confidence intervals around the average recruitment qualification from using just one Labour Force Survey dataset, for the UK are reasonable. The main overlaps are in the mid-skills area. If we needed to do the same analysis for a smaller area, (e.g. Wales) the confidence intervals would be wider. The way to handle that would be to 'pool' datasets so that we had numbers of actual survey respondents which were closer to the ones we have on a UK basis - so 8 or 12 datasets which would give a total number of recruits over two or three years. 
+
+Let's try a Wales version with just one dataset.I've changed the title and added an extra filter, but the code is otherwise identical.
 
 
 ```{r}
-latestlfs %>% filter(!is.na(LEVQUL15)) %>% ggplot(aes(x=GRSSWK, y=to_label(LEVQUL15))) + geom_joy(rel_min_height=0.01) + labs(title="Weekly earnings of workers, AJ 2017", x="Gross weekly earnings", y="Qualification level") + theme_joy()
-latestlfs %>% filter(!is.na(HIQUL15D), GRSSWK < 1500) %>% ggplot(aes(x=GRSSWK, y=to_label(HIQUL15D))) + geom_joy(rel_min_height=0.01) + labs(title="Weekly earnings of workers, AJ 2017", x="Gross weekly earnings", y="Qualification level") + theme_joy()
-latestlfs %>% filter(!is.na(HIQUL15D), HIQUL15D != 7,GRSSWK < 1500) %>% ggplot(aes(x=GRSSWK, y=to_label(HIQUL15D))) + geom_joy(rel_min_height=0.01) + labs(title="Weekly earnings of workers, AJ 2017", x="Gross weekly earnings", y="Qualification level") + theme_joy()
-latestlfs %>% filter(!is.na(LEVQUL15), GRSSWK < 1500) %>% ggplot(aes(x=GRSSWK, y=to_label(LEVQUL15))) + geom_joy(rel_min_height=0.01) + labs(title="Weekly earnings of workers, AJ 2017", x="Gross weekly earnings", y="Qualification level") + theme_joy()
+latestlfs_srvyr %>% 
+  filter(EMPLEN==1, GOVTOF2 == 11) %>% 
+  group_by(sc10mmj) %>% 
+  summarize(mean_qual = survey_mean(levqualnum, vartype="ci", na.rm=TRUE), n = survey_total(na.rm=TRUE)) %>% 
+  ggplot(aes(sc10mmj, mean_qual)) + 
+  geom_pointrange(aes(ymin=mean_qual_low, ymax=mean_qual_upp, size=n)) + 
+  coord_flip() + 
+  scale_size(range=c(0,1), guide=guide_legend(title="Number of recruits")) + 
+  labs(title="Wales average qualification level of recruits by occupation", x= "Occupation group", y="Average NQF qualification level")
+```
 
+The Office for National Statistics recommend that people should not use estimates under 10,000. Looking at those confidence intervals shows the reason they make that sort of recommendation. None of the individual categories has more than 10,000 recruits in one quarter, and the cinfidence intervals are such that we can't even be sure that professional and associate professional recruits are better qualified than plant and machine operatives.
 
+The number of recruits in Wales in the survey into managerial positions is so small that a confidence interval cannot be calculated. It is actually based on 2 respondents. The biggest dots here are based on 10 respondents. With those numbers, if 12 datasets had identical patterns, there would be 24 managerial recruits, and 120 in elementary occupations or caring, leisure etc. That's still much smaller than the UK single quarter dataset, but may be workable with. 
 
+There are trade-offs here between the timeliness of the analysis and the robustness of it. We could add all the datasets with the same occupation coding (which is now about 6 years - 24 datasets). This would give a much better classification, but the labour market was different in 2013, and higher qualified people were being recruited further down the occupation ladder.
 
+### Averages are not the only way to look at patterns.
 
+In fact, the distribution around the average can be very important. The confidence interval for the average does reflect some of the distibution, but not all of it.
+
+Let's look at the distribution of qualifications for job starters within each of these 9 occupation groups. 
+
+To do this we'll use a method known as 'small multiples', with multiple charts in one picture. These aren't scaled by the number of recruits, and are unweighted, but you'll get the picture. We're using the long list of qualifications which runs from 1 which is higher degrees to 84 which is no qualifications. We're assuming that the Office for National Statistics has got the ordering of qualifications broadly right within that.
+
+```{r}
+latestlfs %>% filter(EMPLEN == 1, !is.na(SC10MMJ)) %>% ggplot(aes(x=HIQUAL15, y=to_label(SC10MMJ))) + geom_density_ridges() + labs(title="Qualifications of new job starters, AJ 2017", x="Qualification, 1=highest qualified, 84=no qualifications", y="Occupation") + theme_ridges()
 
 ```
+
+This shows that each of the occupation groups has a wide variety of recruits, with the most concentrated distribution for professional occupations. However, even for them there are numbers of recruits at lower levels . For example, accountants 'qualified by experience' have always been regarded as part of the profession, but may find moving jobs being more difficult than progressiong within a firm.
+
+The only occupation group where the lowest qualified have a large share of recruits is 'process, plat & machine operatives', whereas elementary occupations has a peak at around Level 2 - probably reflecting both the share of the population and the extent to which those jobs are done by young people while studying for higher level qualifications.Notably, the 'process plant recruits, while they have a peak at the bottom end, have substantial numbers recruited higher up. This pulls the average recruitment level up to the level we saw earlier.
+
+The various peaks in the distribution relate to the qualification levels.
+
+The individual plots within the chart are plotting not actual numbers, but probability densities. These are smoothed curves, so go slightly wider than the actual numbers in the data.
 
