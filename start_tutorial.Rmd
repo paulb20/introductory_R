@@ -5,26 +5,80 @@ output:
   html_notebook: default
 ---
 
-## Load useful packages
+## Introduction to producing visualisations relevant to Learning and Work
 
-R has many contributed packages (thousands). These ones are very useful (some more than others). It is usual to load contributed packages in a block at the beginning of the analysis sothey are then available throughout. 
+* Using the Labour Force Survey
+* Using R program 
 
-I'll explain this later.
+## So what I'm going to do is run an analysis to produce a chart and then show you how I did it.
+
+Loading data and initialisation.
 
 ```{r setup}
 library(sjPlot)
 library(sjlabelled)
-library(tidyverse)
-library(ggeffects)
-library(ggthemes)
 library(sjmisc)
+library(tidyverse)
+library(ggthemes)
 library(ggridges)
+library(srvyr)
 
+shortnames <- list.files("../Quarterly_Q1name/", pattern= "^.*\\.sav$")
+lfsdir <- "../Quarterly_Q1name/"
+to_load <- paste0(lfsdir,tail(shortnames,1))
+latestlfs <- read_spss(to_load)
+latestlfs_srvyr <- as_survey(latestlfs, 1, weights = PWT17)
 ```
+Produce the chart
+
+```{r ridgeplot1, fig.width=10, message=FALSE, warning=FALSE}
+latestlfs %>% filter(EMPLEN == 1, !is.na(SC10MMJ)) %>% ggplot(aes(x=HIQUAL15, y=as_label(SC10MMJ))) + geom_density_ridges() + labs(title="Qualifications of new job starters, AJ 2017", x="Qualification, 1=highest qualified, 84=no qualifications", y="Occupation") + theme_ridges()
+```
+
+This shows that each of the occupation groups has a wide variety of recruits, with the most concentrated distribution for professional occupations. However, even for them there are numbers of recruits at lower levels . 
+
+The only occupation group where the lowest qualified have a large share of recruits is 'process, plat & machine operatives', whereas elementary occupations has a peak at around Level 2 - probably reflecting both the share of the population and the extent to which those jobs are done by young people while studying for higher level qualifications.
+
+Notably, the 'process plant' recruits, while they have a peak at the bottom end, have substantial numbers recruited higher up. This pulls the average recruitment level up.
+
+The various peaks in the distribution relate to full qualification levels.
+
+##Labour Force survey
+
+Office for National Statistics survey that produces the main labour market statistics - employment, unemployment, inactivity, as shown in monthly statistics releases.
+
+Here, we are looking at 'recruits' - these are people who started their current role in the previous 3 months. This means it includes people starting self-employed roles and people moving job within the same employer as well as people starting new employee jobs, either from other jobs or not working.
+
+The data used is the latest file - here April to June 2017. The coding used enables automatically picking up the latest file - so if I have downloaded the July to September 2017 data, that would be used. 
+
+The qualification information is classified by ONS into (currently) 84 categories, which are ordered from Higher degree to No qualifications. The ordering is based on advice received. 
+
+For example, compared to the 2011 ordering, there are now 5 new Scottish qualifications.
+
+* Scottish Baccalaureate (inserted between International Baccalaureate and GNVQ/GSVQ Advanced)
+* Scottish National Level 5 (inserted between Level 2 Certificate and O level/GCSE Grade A*-C or equivalent)
+* Scottish National Level 4 (inserted between Level 1 Diploma and CSE below Grade 1, GCSE below Grade C)
+* Scottish National Level 3 (inserted below RSA Other)
+* Scottish National below Level 3 (inserted just below Scottish National Level 3 and above City & Guilds Foundation/Part 1)
+
+Each time such qualifications are added, the list gets longer. Foreign qualifications are equivalenced to appropriate UK comparisons where feasible. T-levels will have to be add sometime soon.
+
+In this LFS survey, we have 88,801 individuals surveyed in April to June 2017. Similar numbers are surveyed each quarter. Many of the survey records relate to people interviewed 3 months before - each household is surveyed 5 times in successive quarters, so for some uses we can see what the change is between their first interview and their fifth one year later. 
+
+The Labour Force Survey is quite a detailed survey - the first interview is face to face, and the remaining four are telephone surveys, so it is quite a costly process. However, there are voices for expanding it - many other countries report labour market statistics based on a single month survey, while the UK uses a 'rolling three month average' which is not as timely.
+
+The data is made available through the ESRC'S UK Data Service, usually some six weeks after the first publication by ONS using the data. It is anonymised.
+
+## What is R
+
+R is a statistical software program. It is free, and maintained by statistics professors and academics. It is widely used in government and in commercial use as well. 
+
+## Stepping through the analysis
+
 
 ## Find the LFS data file wanted. 
 
-In Rstudio, we could do this with a dialog box (File > Import Dataset), but that's just one way of doing it. 
+In R studio, we could do this with a dialogue box (File > Import Dataset), but that's just one way of doing it. 
 
 In R, there are almost always many ways of doing the same thing, some are easier to learn, some are quicker to do.  What I'm trying to do here is to encourage what is called 'reproducible research', so that the code can be run with the same data and always produce the same results, and new data can be substituted and an updated version produced without further tweaking.
 
@@ -50,7 +104,7 @@ What we did there was:
 latestlfs <- read_spss(to_load)
 ```
 
-This loads the entire latest quarterly LFs data file into the computer's memory. The survey has `r nrow(latestlfs)` observations on `r ncol(latestlfs)` variables.
+This loads the entire latest quarterly LFS data file into the computer's memory. The survey has `r nrow(latestlfs)` observations on `r ncol(latestlfs)` variables.
 
 Note: this code is general. Adding an extra data file to the list will mean a different file is loaded.
 
@@ -60,19 +114,33 @@ So here are a few interesting simple tables.
 
 
 ```{r}
-sjt.frq(latestlfs$MF1664, title="Whether aged 16-64 (survey includes children, pensioners)")
-sjt.frq(latestlfs$ILODEFR, title="Employment Status")
-#sjt.frq(latestlfs$LEVQUL15, title="Qualification level (not asked of under 16 or over 70)")
+frq(latestlfs$MF1664)
+```
+```{r}
+frq(latestlfs$ILODEFR)
 
 ```
 
-These tables are produced by the sjt.frq() command. This is part of a set of contributed packages that work well for social science research, where much of the data used is in categorical form.
+```{r}
+latestlfs %>% 
+  filter(MF1664 %in% 1:2)  %>% 
+  group_by(MF1664) %>% 
+  select(LEVQUL15, MF1664) %>% 
+  frq(LEVQUL15)
+```
+
+
+These tables are produced by the frq() command. This is part of a set of contributed packages that work well for social science research, where much of the data used is in categorical form.
 
 
 ### Economic activity by qualification, within age-group
 
 ```{r}
-latestlfs %>% filter(MF1664 %in% 1:2)  %>% group_by(MF1664) %>% select(LEVQUL15, ILODEFR, MF1664) %>% sjtab(fun="xtab", show.row.prc=TRUE)
+latestlfs %>% 
+  filter(MF1664 %in% 1:2)  %>% 
+  group_by(MF1664) %>% 
+  select(LEVQUL15, ILODEFR, MF1664) %>% 
+  flat_table(margin="row")
 ```
 
 ### Weighted and unweighted results
@@ -126,7 +194,7 @@ We could have saved each table as an R object in the workspace, but we haven't d
 
 Now we get to produce a chart
 
-```{r}
+```{r fig.width=12}
 latestlfs_srvyr %>% 
   filter(EMPLEN==1) %>% 
   group_by(sc10mmj) %>% 
@@ -135,7 +203,8 @@ latestlfs_srvyr %>%
   geom_pointrange(aes(ymin=mean_qual_low, ymax=mean_qual_upp, size=n)) + 
   coord_flip() + 
   scale_size(range=c(0,1), guide=guide_legend(title="Number of recruits")) + 
-  labs(title="Average qualification level of recruits by occupation", x= "Occupation group", y="Average NQF qualification level")
+  labs(title="Average qualification level of recruits by occupation", x= "Occupation group", y="Average NQF qualification level") +
+  theme_economist_white(gray_bg = FALSE, horizontal = FALSE)
 ```
 
 Here, we've started from the weighted survey, created the table we had before, then piped it into 'ggplot' which creates a chart in layers.
@@ -153,7 +222,7 @@ The confidence intervals around the average recruitment qualification from using
 Let's try a Wales version with just one dataset.I've changed the title and added an extra filter, but the code is otherwise identical.
 
 
-```{r}
+```{r, fig.width=12}
 latestlfs_srvyr %>% 
   filter(EMPLEN==1, GOVTOF2 == 11) %>% 
   group_by(sc10mmj) %>% 
@@ -162,10 +231,11 @@ latestlfs_srvyr %>%
   geom_pointrange(aes(ymin=mean_qual_low, ymax=mean_qual_upp, size=n)) + 
   coord_flip() + 
   scale_size(range=c(0,1), guide=guide_legend(title="Number of recruits")) + 
-  labs(title="Wales average qualification level of recruits by occupation", x= "Occupation group", y="Average NQF qualification level")
+  labs(title="Wales average qualification level of recruits by occupation", x= "Occupation group", y="Average NQF qualification level")+
+  theme_economist_white(gray_bg = FALSE, horizontal = FALSE)
 ```
 
-The Office for National Statistics recommend that people should not use estimates under 10,000. Looking at those confidence intervals shows the reason they make that sort of recommendation. None of the individual categories has more than 10,000 recruits in one quarter, and the cinfidence intervals are such that we can't even be sure that professional and associate professional recruits are better qualified than plant and machine operatives.
+The Office for National Statistics recommend that people should not use estimates under 10,000. Looking at those confidence intervals shows the reason they make that sort of recommendation. None of the individual categories has more than 10,000 recruits in one quarter, and the confidence intervals are such that we can't even be sure that professional and associate professional recruits are better qualified than plant and machine operatives.
 
 The number of recruits in Wales in the survey into managerial positions is so small that a confidence interval cannot be calculated. It is actually based on 2 respondents. The biggest dots here are based on 10 respondents. With those numbers, if 12 datasets had identical patterns, there would be 24 managerial recruits, and 120 in elementary occupations or caring, leisure etc. That's still much smaller than the UK single quarter dataset, but may be workable with. 
 
@@ -173,18 +243,18 @@ There are trade-offs here between the timeliness of the analysis and the robustn
 
 ### Averages are not the only way to look at patterns.
 
-In fact, the distribution around the average can be very important. The confidence interval for the average does reflect some of the distibution, but not all of it.
+In fact, the distribution around the average can be very important. The confidence interval for the average does reflect some of the distribution, but not all of it.
 
 Let's look at the distribution of qualifications for job starters within each of these 9 occupation groups. 
 
 To do this we'll use a method known as 'small multiples', with multiple charts in one picture. These aren't scaled by the number of recruits, and are unweighted, but you'll get the picture. We're using the long list of qualifications which runs from 1 which is higher degrees to 84 which is no qualifications. We're assuming that the Office for National Statistics has got the ordering of qualifications broadly right within that.
 
-```{r}
+```{r fig.width=12, message=FALSE, warning=FALSE}
 latestlfs %>% filter(EMPLEN == 1, !is.na(SC10MMJ)) %>% ggplot(aes(x=HIQUAL15, y=to_label(SC10MMJ))) + geom_density_ridges() + labs(title="Qualifications of new job starters, AJ 2017", x="Qualification, 1=highest qualified, 84=no qualifications", y="Occupation") + theme_ridges()
 
 ```
 
-This shows that each of the occupation groups has a wide variety of recruits, with the most concentrated distribution for professional occupations. However, even for them there are numbers of recruits at lower levels . For example, accountants 'qualified by experience' have always been regarded as part of the profession, but may find moving jobs being more difficult than progressiong within a firm.
+This shows that each of the occupation groups has a wide variety of recruits, with the most concentrated distribution for professional occupations. However, even for them there are numbers of recruits at lower levels . For example, accountants 'qualified by experience' have always been regarded as part of the profession, but may find moving jobs being more difficult than progression within a firm.
 
 The only occupation group where the lowest qualified have a large share of recruits is 'process, plat & machine operatives', whereas elementary occupations has a peak at around Level 2 - probably reflecting both the share of the population and the extent to which those jobs are done by young people while studying for higher level qualifications.Notably, the 'process plant recruits, while they have a peak at the bottom end, have substantial numbers recruited higher up. This pulls the average recruitment level up to the level we saw earlier.
 
